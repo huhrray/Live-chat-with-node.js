@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+  <html>
+    <head>
+        <meta charset="UTF-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+        <title>
+            NodeJS Chat
+        </title>
+        <link rel="stylesheet" href="chat.css">
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.0/dist/css/bootstrap.min.css" integrity="sha384-B0vP5xmATw1+K9KRQjQERJvTumQW0nPEzvF6L/Z6nronJ3oUOFUFpCjEUQouq2+l" crossorigin="anonymous">
+		<script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.0/dist/js/bootstrap.bundle.min.js" integrity="sha384-Piv4xVNRyMGpqkS2by6br4gNJ7DXjqk09RmUpJ8jgGtD7zP9yug3goQfGII0yAns" crossorigin="anonymous"></script>
+		<script src="https://cdn.jsdelivr.net/gh/jquery-form/form@4.3.0/dist/jquery.form.min.js" integrity="sha384-qlmct0AOBiA2VPZkMY3+2WqkHtIQ9lSdAsAn5RUJD/3vA5MKDgSGcdmIv4ycVxyn" crossorigin="anonymous"></script>
+        <script src="/socket.io/socket.io.js"></script>    
+    </head>
+    <body>
+        <main class="main">
+            <!-- 채팅로그 창 -->
+            <div class="container grid1">
+                <h2>Live Chat</h2>
+                <div id="chatLog" readonly></div>
+            </div>
+            <!-- 프로필 설정 창 -->
+            <div class="container grid2">
+                <h3>My Profile</h3> 
+                <div id="my_profile" onclick="file_select();">
+                    <img id= "profile" src="defaultprofile.jpg">
+                </div>
+                <form id="form_upload">
+                    <input type="text" id="username" class="input_box" placeholder="Set your username" autofocus/>
+                    <input type="file" id="upload" class="d-none" name="userfile"  accept=".jpg, .jpeg, .png" onchange="file_upload();"/>
+                </form>
+            </div>
+            <!-- 채팅메세지 입력 창 -->
+            <div class="container grid3">
+                <select id="user_list" type="text" class="input_box"></select>
+                <input type="text" id="message" class="input_box" placeholder="Type here..." autofocus/>
+                <button type ="submit" id="send_btn" class="input_btn" onClick="sendBtn();">Send</button>
+            </div>
+        </main>
+        <footer class="footer">
+            <p>Made by Seyeon Huh</p>
+        </footer>
+      
+        <script>
+            const socket = io();
+            const chatLog = document.getElementById('chatLog');
+            const user = document.getElementById("username");
+            const message = document.getElementById("message");
+    
+            let currentUsers = document.getElementById("user_list");
+            
+
+
+            socket.on( "connect", function(){
+                console.log( "server connected!" );
+            });
+
+            socket.on('default name', function(name){ 
+                user.value = name;
+            });
+
+            // users change notice
+            socket.on( "notice", ( data ) => {
+                let div = document.createElement("div");
+                div.classList.add("notice");
+                div.innerText = data;
+                chatLog.appendChild(div);
+                chatLog.scrollTop = chatLog.scrollHeight;
+            }); 
+
+             // User list update
+             socket.on( "update_users", ( data ) => {  
+                var optionTags = `<option value="">To All</option>`                  
+                for ( let key in data ){
+                    // 나일 경우 제외
+                    if(data[key] === user.value){continue;}
+                    optionTags += `<option value ="${key}">${data[key]}</option>`
+                }
+                currentUsers.innerHTML = optionTags
+                console.log(currentUsers)
+            });
+
+            // 엔터키 채팅 이벤트 구현 & 메세지 송신 to 서버
+            message.addEventListener('keydown', (e)=>{
+                if (e.keyCode === 13){
+                    sendBtn()
+                }
+            }) 
+            
+            function sendBtn(){
+                if ( user.value === ""){
+                    alert( "Please set your username");
+                    return false;
+                } else if( message.value === ""){
+                    alert( "Please type your message");
+                    return false;
+                }else {
+                    let recipient = currentUsers.value;
+                    let myMsg = message.value;
+                    let myName = user.value;
+                    let photo = document.getElementById( "profile").src;
+                    let data = { recipient, myName, myMsg, photo};
+                    socket.emit( "sendMsg", data);
+                    document.getElementById("message").value="";
+                }
+            }
+           
+            
+            // 메세지 수신 from 서버
+            socket.on( "newMsg", ( data ) => {
+                let div_container = document.createElement("div");
+                let div = document.createElement("div");
+                let img = document.createElement("img");
+                let span = document.createElement("span");
+                console.log(data)          
+
+                span.innerText = data.msgTime;
+                img.src = data.msg.photo;
+                div.innerHTML = `<P>${data.msg.myName} : ${data.msg.myMsg}</p>`;
+                if ( user.value === data.msg.myName){
+                    div.innerHTML = `<p>${data.msg.myMsg}</p>`;
+                    div_container.classList.add("toAll");
+                }
+                if (user.value === data.msg.myName && data.msg.recipient){
+                    div.innerHTML = `<p>${data.msg.myMsg}</p><p class="whisperText"> whisper</p>`;
+                    div.classList.add("whisper");
+                }
+                else if ( data.msg.recipient ) {
+                    div.classList.add("secret");
+                    div.innerHTML += `<p class="whisperText"> whisper</p>`;
+                }
+                
+                
+                div_container.insertBefore(img, div_container.childNodes[0]);
+                div.appendChild( span );
+                div_container.appendChild(div);
+                
+                chatLog.appendChild( div_container );
+                chatLog.scrollTop = chatLog.scrollHeight;
+            }); 
+
+            function file_select(){
+                        $( "#upload" ).click();
+                    }
+
+            function file_upload(){
+                var form = document.getElementById( "form_upload" );
+                
+                $( form ).ajaxForm(
+                    {
+                        url: "http://huhsey.ga:3000/upload",
+                        method: "post",
+                        enctype: "multipart/form-data",
+                        success: function( data ){                            
+                            document.getElementById("profile").src = data;
+                            alert( "The file has been successfully uploaded!" );
+                        }
+                    }
+                );
+                $( form ).submit();
+            }
+            
+        </script>
+  </body>
+</html>
+
+
