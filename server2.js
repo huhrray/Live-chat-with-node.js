@@ -6,7 +6,7 @@ let multer = require( "multer" );
 var publicDir = require( "path" ).join( __dirname + "/public" );
 app.use( express.static( publicDir ) );
 app.get( "/", function( req, res ){
-    res.sendFile( __dirname + "/client.html" );
+    res.sendFile( __dirname + "/index.html" );
 } );
 
 
